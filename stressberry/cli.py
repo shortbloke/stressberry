@@ -95,6 +95,12 @@ def _get_parser_run():
         default=None,
         help="measure ambient temperature. Sensor Type [11|22|2302] <GPIO Number> e.g. 2302 26",
     )
+    parser.add_argument(
+        "--cpuburn",
+        action="store_true",
+        default=False,
+        help="use cpuburn instead of stress",
+    )
     parser.add_argument("outfile", type=argparse.FileType("w"), help="output data file")
     return parser
 
@@ -109,7 +115,7 @@ def run(argv=None):
 
     # Start the stress test in another thread
     t = threading.Thread(
-        target=lambda: test(args.duration, args.idle, args.cores), args=()
+        target=lambda: test(args.duration, args.idle, args.cores, args.cpuburn), args=()
     )
     t.start()
 
@@ -165,9 +171,16 @@ def run(argv=None):
             __version__, datetime.datetime.now()
         )
     )
+
+    if args.cpuburn:
+        testtype = "cpuburn"
+    else:
+        testtype = "stress"
+
     yaml.dump(
         {
             "name": args.name,
+            "type": testtype,
             "time": times,
             "temperature": temps,
             "cpu frequency": freqs,

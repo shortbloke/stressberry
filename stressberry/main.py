@@ -1,12 +1,25 @@
 import subprocess
 import time as tme
-from os import cpu_count
+import os
+import signal
 
 
 def stress_cpu(num_cpus, time):
     subprocess.check_call(
         ["stress", "--cpu", str(num_cpus), "--timeout", "{}s".format(time)]
     )
+    return
+
+
+def cpuburn_test(time):
+    try:
+        print("Starting cpuburn")
+        proc = subprocess.Popen(["cpuburn"], shell=True, preexec_fn=os.setsid)
+        proc.communicate(timeout=time)
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        print("Exiting cpuburn")
+        # return
     return
 
 
@@ -61,7 +74,7 @@ def measure_ambient_temperature(sensor_type="2302", pin="23"):
     try:
         import Adafruit_DHT  # Late import so that library is only needed if requested
     except ImportError as e:
-        print("Install adafruit_dht python module: pip --user install Adafruit_DHT")
+        print("Install adafruit_dht python module: pip install Adafruit_DHT --user")
         raise e
 
     sensor_map = {
@@ -83,22 +96,29 @@ def measure_ambient_temperature(sensor_type="2302", pin="23"):
     return temperature
 
 
-def test(stress_duration, idle_duration, cores):
-    """Run stress test for specified duration with specified idle times
+def test(stress_duration, idle_duration, cores, cpuburn):
+    """Run test for specified duration with specified idle times
        at the start and end of the test.
     """
     if cores is None:
-        cores = cpu_count()
+        cores = os.cpu_count()
 
-    print(
-        "Preparing to stress [{}] CPU Cores for [{}] seconds".format(
-            cores, stress_duration
+    if cpuburn:
+        print("Preparing to run cpuburn for [{}] seconds".format(stress_duration))
+    else:
+        print(
+            "Preparing to stress [{}] CPU Cores for [{}] seconds".format(
+                cores, stress_duration
+            )
         )
-    )
+
     print("Idling for {} seconds...".format(idle_duration))
     tme.sleep(idle_duration)
 
-    stress_cpu(num_cpus=cores, time=stress_duration)
+    if cpuburn:
+        cpuburn_test(time=stress_duration)
+    else:
+        stress_cpu(num_cpus=cores, time=stress_duration)
 
     print("Idling for {} seconds...".format(idle_duration))
     tme.sleep(idle_duration)
